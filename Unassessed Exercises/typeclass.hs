@@ -118,4 +118,4 @@ run :: Program -> Environment Int
 run p = run' p []
   
 run' :: [Statement] -> Environment Int -> Environment Int
-run' p env =  foldr evalS env (reverse p)
+run' p env =  foldr evalS env (reverse p)  

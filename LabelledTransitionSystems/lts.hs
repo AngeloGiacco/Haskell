@@ -23,33 +23,31 @@ type StateMap = [((State, State), State)]
 
 lookUp :: Eq a => a -> [(a, b)] -> b
 --Pre: The item is in the table
-lookUp
-  = undefined
+lookUp target list = fromJust $ lookup target list 
 
 states :: LTS -> [State]
-states
-  = undefined
+states = nub . map (snd . fst)
 
 transitions :: State -> LTS -> [Transition]
-transitions
-  = undefined
+transitions s = filter ((==s) . fst . fst)
 
 alphabet :: LTS -> Alphabet
-alphabet 
-  = undefined
+alphabet = nub . map snd
 
 ------------------------------------------------------
 -- PART II
 
 actions :: Process -> [Id]
-actions
-  = undefined
+actions (Prefix id p) = id : actions p 
+actions (Choice ps)   = concatMap actions ps  
+actions _             = [] 
 
 accepts :: [Id] -> [ProcessDef] -> Bool
+--accepts ["on","off","on"][switch,on,off] --> True
+--accepts accepts ["use","use"] [user] --> False 
 --Pre: The first item in the list of process definitions is
 --     that of the start process.
-accepts 
-  = undefined
+accepts = undefined 
 
 ------------------------------------------------------
 -- PART III

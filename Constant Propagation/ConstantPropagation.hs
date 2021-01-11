@@ -85,8 +85,9 @@ applyPropagate (name, args, body)
 
 foldConst :: Exp -> Exp
 -- Pre: the expression is in SSA form
-foldConst phi@(Phi (Const n) (Const n')) = if n == n' then Const n else phi
-foldConst (Apply o (Const x) (Const y))  = Const (apply o x y)
+foldConst phi@(Phi (Const n) (Const n'))
+  | n == n' = Const n
+foldConst (Apply o (Const n) (Const n')) = Const (apply o n n')
 foldConst (Apply Add (Const 0) (Var v))  = Var v
 foldConst (Apply Add (Var v) (Const 0))  = Var v
 foldConst e                              = e
@@ -95,23 +96,13 @@ sub :: Id -> Int -> Exp -> Exp
 --sub "a" 0 e5
 -- e5 = Apply Add (Var "a") (Var "x")
 -- Pre: the expression is in SSA form
-sub var n e = foldConst res
+sub var n e = foldConst (sub' e)
   where 
-    res = sub' var n e
-    sub' :: Id -> Int -> Exp -> Exp
-    sub' var n (Var v)                 = if v == var then Const n else Var v 
-    sub' var n (Apply o v1 v2)         = Apply o (sub var n v1) (sub var n v2)
-    sub' var n (Phi (Var v1) (Var v2))
-      | v1 == var = Phi (Const n) (Var v2)
-      | v2 == var = Phi (Var v1) (Const n)
-      | otherwise = Phi (Var v1) (Var v2)
-    sub' var n (Phi (Var v1) y)
-      | v1 == var = Phi (Const n) y
-      | otherwise = Phi (Var v1) y
-    sub' var n (Phi y (Var v2))
-      | v2 == var = Phi (Const n) y
-      | otherwise = Phi y (Var v2)
-    sub' _   _  e = e            
+    sub' :: Exp -> Exp
+    sub' (Var v)                 = if v == var then Const n else Var v 
+    sub' (Apply o v1 v2)         = Apply o (sub var n v1) (sub var n v2)
+    sub' (Phi e e')              = Phi (sub' e) (sub' e')
+    sub' e                       = e           
       
 
 -- Use (by uncommenting) any of the following, as you see fit...
@@ -134,7 +125,26 @@ scan id n (DoWhile b e:ss) = (w'++w,DoWhile b' (sub id n e):bs)
     (w',b') = scan id n b 
     (w,bs)  = scan id n ss
 scan id n [] = ([],[])
- 
+
+--Tony's solution
+scan' :: Id -> Int -> Block -> (Worklist, Block)
+scan' v n b = foldr scan' ([],[]) b 
+  where 
+    scan' :: Statement -> (Worklist, Block) -> (Worklist,Block)
+    scan' (Assign v' e) (wl,b)  
+      | v == "$return" = (wl, Assign v' (sub v n e) : b)
+      | otherwise      = case sub v n e of 
+        Const c -> ((v',c):wl,b)
+        e'      -> (wl, Assign v' e' :b)  
+    scan' (If p q r) (wl,b)  
+      = (wl ++ wl' ++ wl'', If (sub v n p) q' r' : b)  
+      where 
+        (wl',q') = scan v n q
+        (wl'',r') = scan v n r
+    scan' (DoWhile body p) (wl,b) 
+      = (wl ++ wl', DoWhile body' (sub v n p) : b)
+      where 
+        (wl',body') = scan v n body
   
 propagateConstants :: Block -> Block
 -- Pre: the block is in SSA form
@@ -149,8 +159,7 @@ propagateConstants = propagateConstants' [("$INVALID", 0)]
 -- only returns true if it is a const assignment NOT to "$return"
 isConstAssignment :: Statement -> Bool 
 isConstAssignment (Assign id (Const _))
-  | id == "$return" = False 
-  | otherwise       = True 
+  | id /= "$return" = True 
 isConstAssignment _ = False
 
 

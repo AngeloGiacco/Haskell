@@ -42,17 +42,14 @@ update new@(id,val) (curr@(name,_):vars)
   | otherwise = curr : update new vars
 update new [] = [new]
 
+opTable 
+  = [(Add, (+)),(Mul,(*)),(Eq,bool (==)), (Gtr, bool (>))]
+    where 
+      bool :: (Int -> Int -> Bool) -> Int -> Int -> Int 
+      bool f a b = fromEnum (f a b)
+
 apply :: Op -> Int -> Int -> Int
-apply Add x y = x + y
-apply Mul x y = x * y
-apply Eq  x y = boolToInt(x == y)
-apply Gtr x y = boolToInt(x >  y)
-
-boolToInt :: Bool -> Int 
-boolToInt x = if x then 1 else 0 
-
-intToBool :: Int -> Bool 
-intToBool = (==1)
+apply op = lookUp op opTable
 
 eval :: Exp -> State -> Int
 -- Pre: the variables in the expression will all be bound in the given state 
@@ -65,20 +62,16 @@ eval (Phi a b) _     = undefined
 execStatement :: Statement -> State -> State
 execStatement (Assign name e) s = update (name, eval e s) s
 execStatement (If pred bT bF) s
- | intToBool (eval pred s) = execBlock bT s 
- | otherwise               = execBlock bF s 
+ | toEnum (eval pred s) = execBlock bT s 
+ | otherwise            = execBlock bF s 
 execStatement st@(DoWhile b pred) s
-  | intToBool (eval pred s') = execStatement st s'
-  | otherwise                = s'               
+  | toEnum (eval pred s') = execStatement st s'
+  | otherwise             = s'               
   where  
     s' = execBlock b s
 
 execBlock :: Block -> State -> State
-execBlock (b:bs) s = execBlock bs s'
-  where 
-    s' = execStatement b s
-execBlock [] s = s
-
+execBlock = flip $ foldl' $ flip execStatement
 ------------------------------------------------------------------------
 -- Given function for testing propagateConstants...
 
@@ -183,8 +176,9 @@ unPhi :: Block -> Block
 unPhi (if'@(If e b1 b2):ss) = foldl insertVars if' phis : unPhi (ss \\ phis)
   where
     phis = takeWhile (\case Assign _ (Phi _ _) -> True; _ -> False) ss   
-unPhi (dw@(DoWhile whileBlock e):ss) = foldl insertVars dw phis : unPhi (ss \\ phis)
+unPhi (dw@(DoWhile whileBlock e):ss) = res : unPhi (ss \\ phis)
   where 
+    res  = foldl insertVars dw phis
     phis = takeWhile (\case Assign _ (Phi _ _) -> True; _ -> False) whileBlock
 unPhi x = x
 
@@ -193,9 +187,9 @@ insertVars (If e b1 b2) (Assign id (Phi e1 e2)) = If e b1' b2'
   where 
     b1' = b1 ++ [Assign id e1]
     b2' = b2 ++ [Assign id e2]
-insertVars (DoWhile whileBlock e) (Assign id (Phi e1 e2)) = DoWhile whileBlock' e
+insertVars (DoWhile whileBlock e) (Assign id (Phi e1 e2)) = res 
   where 
-    whileBlock' = Assign id e1:whileBlock ++ [Assign id e2]
+    res = DoWhile (Assign id e1:whileBlock ++ [Assign id e2]) e
 
 ------------------------------------------------------------------------
 

@@ -35,7 +35,7 @@ alphabet :: LTS -> Alphabet
 alphabet = nub . map snd
 
 ------------------------------------------------------
--- PART II
+-- PART II                                        
 
 actions :: Process -> [Id]
 actions (Prefix id p) = id : actions p 

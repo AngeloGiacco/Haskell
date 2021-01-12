@@ -53,21 +53,15 @@ lookUp :: Eq a => a -> [(a, b)] -> b
 lookUp query list = fromJust (lookup query list)
 
 tryToLookUp :: Eq a => a -> b -> [(a, b)] -> b
-tryToLookUp query fallback list = tryToLookUp' (lookup query list) fallback
-  where 
-    tryToLookUp' :: Maybe b -> b -> b 
-    tryToLookUp' res fallback 
-      | isNothing res  = fallback 
-      | otherwise      = fromJust res
-
+tryToLookUp query def list = fromMaybe def (lookup query list)
       
 -- Pre: The given value is in the table
 reverseLookUp :: Eq b => b -> [(a, b)] -> [a]
-reverseLookUp query list = map fst (filter ((==query) . snd) list) 
+reverseLookUp query list = [k | (k,v) <- list, v == query] 
 
 occurs :: String -> Type -> Bool
+occurs name (TVar v)    = v == name
 occurs name (TFun t t') = occurs name t || occurs name t'
-occurs name (TVar a)    = a == name
 occurs name  _          = False
 ------------------------------------------------------
 -- PART II
@@ -87,7 +81,7 @@ inferType (Cond pred t f) env
         predType  = inferType pred env
         trueType  = inferType t env 
         falseType = inferType f env 
-inferType (App e1 e2) env = checkMatch (inferType e1 env) (inferType e2 env)
+inferType (App f e) env = checkMatch (inferType f env) (inferType e env)
   where
       checkMatch :: Type -> Type -> Type
       checkMatch (TFun t1 t1') t2
@@ -101,13 +95,14 @@ inferType (App e1 e2) env = checkMatch (inferType e1 env) (inferType e2 env)
 applySub ::  Sub -> Type -> Type
 applySub s v@(TVar name) = tryToLookUp name v s
 applySub s (TFun t1 t2)  = TFun (applySub s t1) (applySub s t2)
-applySub s other         = other
+applySub _ other         = other
 
 unify :: Type -> Type -> Maybe Sub
 unify t t'
   = unifyPairs [(t, t')] []
 
 unifyPairs :: [(Type, Type)] -> Sub -> Maybe Sub
+unifyPairs [] s = Just s 
 unifyPairs ((TInt,TInt):ts)   s = unifyPairs ts s 
 unifyPairs ((TBool,TBool):ts) s = unifyPairs ts s
 unifyPairs ((TVar v,TVar v'):ts) s 
@@ -122,15 +117,12 @@ unifyPairs ((TVar v, t):ts) s
     where 
         s' = (v,t):s
         ts' = map (Data.Bifunctor.bimap (applySub s') (applySub s')) ts
-unifyPairs ((t,TVar v):ts) s
-  | occurs v t = Nothing 
-  | otherwise  = unifyPairs ts' s'
-    where 
-        s' = (v,t):s
-        ts' = map (Data.Bifunctor.bimap (applySub s') (applySub s')) ts
-unifyPairs ((TFun t1 t2,TFun t1' t2'):ts) s = unifyPairs ((t1,t1'):(t2,t2'):ts) s 
-unifyPairs [] s = Just s 
-unifyPairs _ s  = Nothing
+unifyPairs ((t,TVar v):ts) s 
+  = unifyPairs ((TVar v,t):ts) s
+unifyPairs ((TFun t1 t2,TFun t1' t2'):ts) s 
+  = unifyPairs ((t1,t1'):(t2,t2'):ts) s 
+unifyPairs _ _  
+  = Nothing
 
 ------------------------------------------------------
 -- PART IV

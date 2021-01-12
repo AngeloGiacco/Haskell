@@ -144,14 +144,38 @@ combineSubs
   = foldr1 combine
 
 inferPolyType :: Expr -> Type
-inferPolyType
-  = undefined
+inferPolyType expr = res 
+  where 
+    (_,res,_) = inferPolyType' expr [] (map (:[]) ['a'..'z'])
 
 -- You may optionally wish to use one of the following helper function declarations
 -- as suggested in the specification. 
 
--- inferPolyType' :: Expr -> TEnv -> [String] -> (Sub, Type, [String])
--- inferPolyType'
+inferPolyType' :: Expr -> TEnv -> [String] -> (Sub, Type, [String])
+inferPolyType' (Number _) _ vs      = ([],TInt,vs)
+inferPolyType' (Boolean _) _ vs     = ([],TBool,vs)
+inferPolyType' (Id x) env vs        = ([], tryToLookUp x TErr env, vs)
+inferPolyType' (Prim p) env vs      = ([], tryToLookUp p TErr primTypes, vs)
+inferPolyType' (Fun x e) env (v:vs) = (s,TFun (applySub s tx) te, vs)
+  where
+    tx = TVar v 
+    b   = (x,tx)
+    env' = b : env 
+    (s, te, vs) = inferPolyType' e env' vs 
+inferPolyType' (App f e) env (v:vs) = (s,vt,vse)
+  where 
+    (sf,tf,vsf) = inferPolyType' f env vs
+    env'        = updateTEnv sf env
+    (se,te,vse) = inferPolyType' e env vsf
+    vt          = TVar v 
+    msu         = unify tf (TFun te vt)
+    (su,tr)     = checkUnification msu vt 
+    s           = combineSubs [su,se,sf]
+
+checkUnification :: Maybe Sub -> Type -> (Sub, Type)
+checkUnification (Just s) t = (s, applySub s t)
+checkUnification Nothing  t = ([],TErr)
+
 --   = undefined
 
 -- inferPolyType' :: Expr -> TEnv -> Int -> (Sub, Type, Int)

@@ -44,10 +44,15 @@ actions _             = []
 
 accepts :: [Id] -> [ProcessDef] -> Bool
 --accepts ["on","off","on"][switch,on,off] --> True
---accepts accepts ["use","use"] [user] --> False 
+--accepts ["use","use"] [user] --> False 
 --Pre: The first item in the list of process definitions is
 --     that of the start process.
-accepts = undefined 
+accepts ids ps = ids `elem` constructPath ps (length ids)
+  where 
+    constructPath :: [[Id]] [ProcessDef] -> Int -> [[Id]]
+    constructPath ((_,Ref r):pds) = constructPath (lookUp r @) 
+accepts [] []      = True 
+accepts _  []      = False   
 
 ------------------------------------------------------
 -- PART III
